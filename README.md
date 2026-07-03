@@ -6,9 +6,9 @@
 
 ## Experimente a aplicação
 
-**[→ Abrir TalentIQ](https://YOUR-APP-URL.streamlit.app)**
+[![Open in Streamlit](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://talentiq-9aoi2fndbxbijqgubjozkx.streamlit.app/)
 
-> *Link disponível após deploy no Streamlit Cloud — ver secção abaixo.*
+**[→ Abrir TalentIQ](https://talentiq-9aoi2fndbxbijqgubjozkx.streamlit.app/)**
 
 ---
 
