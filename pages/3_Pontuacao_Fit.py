@@ -1,4 +1,4 @@
-# pages/3_Pontuacao_Fit.py — Fit Scoring
+﻿# pages/3_Pontuacao_Fit.py — Fit Scoring
 
 import streamlit as st
 import json
@@ -76,7 +76,7 @@ candidatos_vaga = [c for c in candidatos if c["vaga_id"] == vaga["id"]]
 if not candidatos_vaga:
     st.markdown(f"""
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:18px; text-align:center; color:#1d4ed8;">
-        &#8505;ï¸ Nenhum candidato associado à vaga <strong>{vaga['titulo']}</strong>.
+        &#8505; Nenhum candidato associado à vaga <strong>{vaga['titulo']}</strong>.
     </div>
     """, unsafe_allow_html=True)
     st.stop()

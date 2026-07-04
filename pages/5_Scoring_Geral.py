@@ -1,4 +1,4 @@
-# pages/5_Scoring_Geral.py — Tabela de Scoring Geral
+﻿# pages/5_Scoring_Geral.py — Tabela de Scoring Geral
 
 import streamlit as st
 import json
@@ -449,7 +449,7 @@ if not candidatos:
     st.markdown("""
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px;
                 padding:24px; text-align:center; color:#1d4ed8;">
-        &#8505;ï¸ Nenhum candidato registado ainda. Carregue CVs em <strong>&#128196; Carregar CV</strong> primeiro.
+        &#8505; Nenhum candidato registado ainda. Carregue CVs em <strong>&#128196; Carregar CV</strong> primeiro.
     </div>
     """, unsafe_allow_html=True)
     st.stop()
@@ -674,7 +674,7 @@ with tab2:
 
         with col_g4:
             st.markdown('<div class="section-card">', unsafe_allow_html=True)
-            st.markdown("#### ðŸ•¸ï¸ Radar — Dimensões do Score")
+            st.markdown("#### ðŸ•¸ Radar — Dimensões do Score")
             top5 = df_scored.nlargest(5, "Score Total")
             categories = ["Competências (50)", "Experiência (30)", "Formação (20)"]
             fig_radar = go.Figure()
@@ -726,7 +726,7 @@ with tab3:
         with st.spinner("A gerar ficheiro Excel..."):
             excel_bytes = _export_excel(df_all, vagas)
         st.download_button(
-            label="â¬‡ï¸  Descarregar Excel",
+            label="â¬‡  Descarregar Excel",
             data=excel_bytes,
             file_name=f"{nome_ficheiro}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -772,7 +772,7 @@ with tab4:
         with st.spinner("A gerar relatório Word..."):
             word_bytes = _export_word(df_all, vagas, candidatos)
         st.download_button(
-            label="â¬‡ï¸  Descarregar Relatório (.docx)",
+            label="â¬‡  Descarregar Relatório (.docx)",
             data=word_bytes,
             file_name=f"{nome_relatorio}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

@@ -1,4 +1,4 @@
-# pages/4_Pipeline.py — Candidate Pipeline
+﻿# pages/4_Pipeline.py — Candidate Pipeline
 
 import streamlit as st
 import json
@@ -105,7 +105,7 @@ if not candidatos_filtrados:
     st.markdown("""
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px;
                 padding:20px; text-align:center; color:#1d4ed8;">
-        &#8505;ï¸ Nenhum candidato encontrado para este filtro.
+        &#8505; Nenhum candidato encontrado para este filtro.
     </div>
     """, unsafe_allow_html=True)
     st.stop()
@@ -119,7 +119,7 @@ rejeitados = len([c for c in candidatos_filtrados if c["etapa"] == "Rejeitado"])
 
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("&#128101; Total", len(candidatos_filtrados))
-col2.metric("âš™ï¸ Em Processo", em_processo)
+col2.metric("âš™ Em Processo", em_processo)
 col3.metric("&#9989; Contratados", contratados)
 col4.metric("&#10060; Rejeitados", rejeitados)
 col5.metric("&#127919; Score Médio", f"{round(sum(scores)/len(scores))}%" if scores else "—")
@@ -186,7 +186,7 @@ with col_chart2:
 
 # â”€â”€ Kanban board â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("### ðŸ—‚ï¸ Candidatos por Etapa")
+st.markdown("### ðŸ—‚ Candidatos por Etapa")
 
 etapas_ativas = [e for e in ETAPAS if e not in ["Contratado", "Rejeitado"]]
 cols = st.columns(len(etapas_ativas))

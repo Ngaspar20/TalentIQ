@@ -1,4 +1,4 @@
-# pages/2_Carregar_CV.py — CV Upload & Parsing
+﻿# pages/2_Carregar_CV.py — CV Upload & Parsing
 
 import streamlit as st
 import json
@@ -57,7 +57,7 @@ vagas = dados.get("vagas", [])
 if not vagas:
     st.markdown("""
     <div style="background:#fefce8; border:1px solid #fde047; border-radius:12px; padding:18px 20px;">
-        &#9888;ï¸ <strong>Nenhuma vaga criada.</strong> Crie uma vaga primeiro em <strong>&#128203; Criar Vaga</strong>.
+        &#9888; <strong>Nenhuma vaga criada.</strong> Crie uma vaga primeiro em <strong>&#128203; Criar Vaga</strong>.
     </div>
     """, unsafe_allow_html=True)
     st.stop()
@@ -203,7 +203,7 @@ candidatos = dados.get("candidatos", [])
 if not candidatos:
     st.markdown("""
     <div style="background:#eff6ff; border:1px solid #bfdbfe; border-radius:12px; padding:18px; text-align:center; color:#1d4ed8;">
-        &#8505;ï¸ Nenhum candidato registado ainda.
+        &#8505; Nenhum candidato registado ainda.
     </div>
     """, unsafe_allow_html=True)
 else:
