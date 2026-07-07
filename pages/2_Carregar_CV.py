@@ -11,29 +11,28 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from core.parser import extract_text_from_file, parse_cv
 from core.styles import inject_css, page_header, skill_tags, footer, LOGO_SVG
+from core.security import esc, atomic_save, validate_upload
 from qa_agent import QAAgent
 
 st.set_page_config(page_title="Carregar CV &middot; TalentIQ", page_icon="&#128196;", layout="wide")
 inject_css()
 
 def _load_data():
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(config.DATA_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"vagas": [], "candidatos": []}
 
 def _save_data(dados):
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=2)
+    atomic_save(config.DATA_PATH, dados)
 
 if "dados" not in st.session_state:
     st.session_state["dados"] = _load_data()
 
-qa = QAAgent(config.APP_NAME, config.APP_VERSION)
-qa.display_qa_dashboard(qa.run_full_qa_suite())
+if config.DEV_MODE:
+    qa = QAAgent(config.APP_NAME, config.APP_VERSION)
+    qa.display_qa_dashboard(qa.run_full_qa_suite())
 
 _sb_logo = LOGO_SVG.replace("\n", "").replace("  ", " ")
 with st.sidebar:
@@ -65,7 +64,12 @@ if not vagas:
 # Job selector
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 st.markdown("#### &#128204; Associar Candidato a uma Vaga")
-vaga_opcoes = {f"{v['titulo']} ({v['id']})": v for v in vagas}
+vaga_opcoes = {}
+for _v in vagas:
+    _label = _v["titulo"]
+    if _label in vaga_opcoes:
+        _label = f"{_v['titulo']} ({_v['id'][:6]})"
+    vaga_opcoes[_label] = _v
 vaga_selecionada_key = st.selectbox("Seleccionar Vaga", list(vaga_opcoes.keys()))
 vaga_selecionada = vaga_opcoes[vaga_selecionada_key]
 st.markdown(f"**Competências requeridas:**")
@@ -85,6 +89,10 @@ uploaded_file = st.file_uploader(
 st.markdown('</div>', unsafe_allow_html=True)
 
 if uploaded_file:
+    _ok, _err = validate_upload(uploaded_file)
+    if not _ok:
+        st.error(f"❌ {_err}")
+        st.stop()
     with st.spinner("&#128269; A analisar o CV com IA..."):
         texto = extract_text_from_file(uploaded_file)
         if not texto.strip():
@@ -98,8 +106,6 @@ if uploaded_file:
     </div>
     """, unsafe_allow_html=True)
 
-    qa.validate_data_integrity(perfil, required_fields=["nome", "competencias", "experiencia_anos"], data_type="dict")
-
     # Profile display
     col1, col2 = st.columns([1, 1])
 
@@ -110,10 +116,10 @@ if uploaded_file:
         st.markdown(f"""
         <div style="background:#eff6ff; border-radius:10px; padding:16px; margin-bottom:16px;">
             <div style="font-size:1.1rem; font-weight:700; color:#1e3a8a;">
-                {perfil.get('nome', '—')}
+                {esc(perfil.get('nome', '—'))}
             </div>
             <div style="color:#64748b; font-size:0.85rem; margin-top:4px;">
-                {perfil.get('email') or '—'} &nbsp;&middot;&nbsp; {perfil.get('telefone') or '—'}
+                {esc(perfil.get('email') or '—')} &nbsp;&middot;&nbsp; {esc(perfil.get('telefone') or '—')}
             </div>
         </div>
         """, unsafe_allow_html=True)
@@ -164,7 +170,7 @@ if uploaded_file:
             nome_edit = st.text_input("&#128100; Nome do Candidato", value=perfil.get("nome", ""))
             email_edit = st.text_input("&#128231; Email", value=perfil.get("email") or "")
         with col2:
-            etapa = st.selectbox("ðŸ“ Etapa no Pipeline", [
+            etapa = st.selectbox("📍 Etapa no Pipeline", [
                 "Candidatura Recebida", "Em Triagem", "Entrevista",
                 "Proposta", "Contratado", "Rejeitado"
             ])
@@ -175,25 +181,44 @@ if uploaded_file:
     st.markdown('</div>', unsafe_allow_html=True)
 
     if guardar:
-        candidato = {
-            "id": str(uuid.uuid4())[:8],
-            "vaga_id": vaga_selecionada["id"],
-            "vaga_titulo": vaga_selecionada["titulo"],
-            "nome": nome_edit.strip() or perfil.get("nome", "Desconhecido"),
-            "email": email_edit.strip(),
-            "perfil": perfil,
-            "etapa": etapa,
-            "notas": notas,
-            "score_fit": None,
-            "data_candidatura": datetime.now().strftime("%Y-%m-%d %H:%M"),
-        }
+        nome_final = nome_edit.strip() or perfil.get("nome", "Desconhecido")
+        email_final = email_edit.strip()
         dados = _load_data()
-        dados["candidatos"].append(candidato)
-        _save_data(dados)
-        st.session_state["dados"] = dados
-        st.success(f"&#9989; Candidato **{candidato['nome']}** guardado com sucesso!")
 
-# â”€â”€ Existing candidates â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+        # Duplicate detection: same email OR same name for same vaga
+        duplicados = [
+            c for c in dados.get("candidatos", [])
+            if c["vaga_id"] == vaga_selecionada["id"] and (
+                (email_final and c.get("email", "").lower() == email_final.lower()) or
+                c.get("nome", "").lower() == nome_final.lower()
+            )
+        ]
+        if duplicados:
+            dup = duplicados[0]
+            st.warning(
+                f"⚠️ Já existe um candidato com este nome/email para esta vaga: "
+                f"**{dup['nome']}** (ID: `{dup['id']}`, registado em {dup['data_candidatura']}). "
+                f"Verifique se não é um duplicado antes de guardar."
+            )
+        else:
+            candidato = {
+                "id": str(uuid.uuid4())[:8],
+                "vaga_id": vaga_selecionada["id"],
+                "vaga_titulo": vaga_selecionada["titulo"],
+                "nome": nome_final,
+                "email": email_final,
+                "perfil": perfil,
+                "etapa": etapa,
+                "notas": notas,
+                "score_fit": None,
+                "data_candidatura": datetime.now().strftime("%Y-%m-%d %H:%M"),
+            }
+            dados["candidatos"].append(candidato)
+            _save_data(dados)
+            st.session_state["dados"] = dados
+            st.success(f"&#9989; Candidato **{candidato['nome']}** guardado com sucesso!")
+
+# â"€â"€ Existing candidates â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### &#128101; Candidatos Registados")
 
@@ -221,7 +246,14 @@ else:
                 skill_tags(c['perfil']['competencias'])
             if c.get("notas"):
                 st.write(f"**&#128221; Notas:** {c['notas']}")
-            st.caption(f"ID: `{c['id']}` &middot; Candidatura: {c['data_candidatura']}")
+            col_info, col_del = st.columns([5, 1])
+            col_info.caption(f"ID: `{c['id']}` &middot; Candidatura: {c['data_candidatura']}")
+            with col_del:
+                if st.button("🗑️ Remover", key=f"del_cand_{c['id']}"):
+                    dados["candidatos"] = [x for x in dados["candidatos"] if x["id"] != c["id"]]
+                    _save_data(dados)
+                    st.session_state["dados"] = dados
+                    st.rerun()
 
 footer(config.APP_VERSION, config.LLM_ENGINE)
 

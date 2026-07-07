@@ -14,16 +14,16 @@ import plotly.graph_objects as go
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from core.styles import inject_css, page_header, skill_tags, score_badge, footer, LOGO_SVG
+from core.security import esc
 from qa_agent import QAAgent
 
 st.set_page_config(page_title="Scoring Geral &middot; TalentIQ", page_icon="&#128200;", layout="wide")
 inject_css()
 
-# â”€â”€ Data helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Data helpers â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def _load_data():
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(config.DATA_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"vagas": [], "candidatos": []}
@@ -56,7 +56,7 @@ def _build_df(candidatos: list, vagas: list) -> pd.DataFrame:
     return pd.DataFrame(rows)
 
 
-# â”€â”€ Excel export â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Excel export â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def _export_excel(df: pd.DataFrame, vagas: list) -> bytes:
     from openpyxl import Workbook
     from openpyxl.styles import (PatternFill, Font, Alignment,
@@ -66,7 +66,7 @@ def _export_excel(df: pd.DataFrame, vagas: list) -> bytes:
 
     wb = Workbook()
 
-    # â”€â”€ Sheet 1: Ranking Geral â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Sheet 1: Ranking Geral â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     ws1 = wb.active
     ws1.title = "Ranking Geral"
 
@@ -79,7 +79,7 @@ def _export_excel(df: pd.DataFrame, vagas: list) -> bytes:
     ws1.row_dimensions[1].height = 32
 
     ws1.merge_cells("A2:O2")
-    ws1["A2"] = f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}  &middot;  Motor IA: {config.LLM_ENGINE.upper()}"
+    ws1["A2"] = f"Gerado em: {datetime.now().strftime('%d/%m/%Y %H:%M')}  ·  Motor IA: {config.LLM_ENGINE.upper()}"
     ws1["A2"].font = Font(italic=True, size=10, color="64748B")
     ws1["A2"].alignment = Alignment(horizontal="center")
 
@@ -157,7 +157,7 @@ def _export_excel(df: pd.DataFrame, vagas: list) -> bytes:
     ws1.freeze_panes = "A4"
     ws1.auto_filter.ref = f"A3:O{3 + len(df_sorted)}"
 
-    # â”€â”€ Sheet 2: Por Vaga â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Sheet 2: Por Vaga â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     ws2 = wb.create_sheet("Por Vaga")
     ws2.merge_cells("A1:F1")
     ws2["A1"] = "Resumo por Vaga"
@@ -196,7 +196,7 @@ def _export_excel(df: pd.DataFrame, vagas: list) -> bytes:
             cell.border = border
         ws2.row_dimensions[r_idx].height = 18
 
-    # â”€â”€ Sheet 3: Matriz Competências â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    # â"€â"€ Sheet 3: Matriz Competências â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     ws3 = wb.create_sheet("Competências")
     ws3.merge_cells("A1:B1")
     ws3["A1"] = "Competências mais frequentes nos candidatos"
@@ -227,7 +227,7 @@ def _export_excel(df: pd.DataFrame, vagas: list) -> bytes:
     return output.getvalue()
 
 
-# â”€â”€ Word report â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Word report â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
     from docx import Document
     from docx.shared import Pt, RGBColor, Inches, Cm
@@ -269,7 +269,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
     meta = doc.add_paragraph()
     meta.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_meta = meta.add_run(
-        f"Gerado em: {datetime.now().strftime('%d de %B de %Y, %H:%M')}  &middot;  "
+        f"Gerado em: {datetime.now().strftime('%d de %B de %Y, %H:%M')}  ·  "
         f"Motor IA: {config.LLM_ENGINE.upper()}"
     )
     run_meta.font.size = Pt(10)
@@ -278,7 +278,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
 
     doc.add_paragraph()
 
-    # â”€â”€ Summary stats â”€â”€
+    # â"€â"€ Summary stats â"€â"€
     p = doc.add_heading("1. Resumo Executivo", level=1)
     p.runs[0].font.color.rgb = RGBColor(30, 58, 138)
 
@@ -293,7 +293,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
     tbl = doc.add_table(rows=2, cols=5)
     tbl.style = "Table Grid"
     tbl.alignment = WD_TABLE_ALIGNMENT.CENTER
-    headers_s = ["Total Candidatos", "Com Score", "Alto (â‰¥75)", "Médio (50-74)", "Score Médio"]
+    headers_s = ["Total Candidatos", "Com Score", "Alto (>=75)", "Médio (50-74)", "Score Médio"]
     values_s  = [str(n_total), str(n_scored), str(n_altos), str(n_medios), str(avg_score)]
     for i, (h, v) in enumerate(zip(headers_s, values_s)):
         hcell = tbl.rows[0].cells[i]
@@ -311,7 +311,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
 
     doc.add_paragraph()
 
-    # â”€â”€ Ranking table â”€â”€
+    # â"€â"€ Ranking table â"€â"€
     p2 = doc.add_heading("2. Ranking Geral de Candidatos", level=1)
     p2.runs[0].font.color.rgb = RGBColor(30, 58, 138)
 
@@ -338,7 +338,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
         vals = [
             str(r_idx + 1),
             row["Candidato"],
-            row["Vaga"][:30] + ("â€¦" if len(row["Vaga"]) > 30 else ""),
+            row["Vaga"][:30] + ("..." if len(row["Vaga"]) > 30 else ""),
             str(int(score)) if score is not None else "—",
             str(row["Competências (50)"]) + "/50" if row["Competências (50)"] is not None else "—",
             str(row["Experiência (30)"]) + "/30" if row["Experiência (30)"] is not None else "—",
@@ -355,7 +355,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
 
     doc.add_paragraph()
 
-    # â”€â”€ Per-job sections â”€â”€
+    # â"€â"€ Per-job sections â"€â"€
     p3 = doc.add_heading("3. Análise Detalhada por Vaga", level=1)
     p3.runs[0].font.color.rgb = RGBColor(30, 58, 138)
 
@@ -369,27 +369,27 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
         if len(scores_v):
             stats_p = doc.add_paragraph()
             stats_p.add_run(
-                f"Candidatos: {len(grp_s)}  &middot;  Score médio: {round(scores_v.mean(),1)}  &middot;  "
-                f"Máximo: {int(scores_v.max())}  &middot;  Mínimo: {int(scores_v.min())}"
+                f"Candidatos: {len(grp_s)}  ·  Score médio: {round(scores_v.mean(),1)}  ·  "
+                f"Máximo: {int(scores_v.max())}  ·  Mínimo: {int(scores_v.min())}"
             ).font.size = Pt(10)
 
         for _, row in grp_s.iterrows():
             score = row["Score Total"]
             nivel = row["Nível Alinhamento"]
-            icon  = "ðŸŸ¢" if score and score >= 75 else "ðŸŸ¡" if score and score >= 50 else "ðŸ”´"
+            icon  = "🟢" if score and score >= 75 else "🟡" if score and score >= 50 else "🔴"
             p_cand = doc.add_paragraph(style="List Bullet")
             run_n = p_cand.add_run(f"{row['Candidato']}")
             run_n.bold = True
             run_n.font.size = Pt(10)
             run_s = p_cand.add_run(
-                f"  —  Score: {int(score) if score is not None else '—'}/100  &middot;  {nivel}  &middot;  Etapa: {row['Etapa']}"
+                f"  —  Score: {int(score) if score is not None else '—'}/100  ·  {nivel}  ·  Etapa: {row['Etapa']}"
             )
             run_s.font.size = Pt(10)
             run_s.font.color.rgb = RGBColor(100, 116, 139)
 
         doc.add_paragraph()
 
-    # â”€â”€ Recommendations â”€â”€
+    # â"€â"€ Recommendations â"€â"€
     p4 = doc.add_heading("4. Recomendações", level=1)
     p4.runs[0].font.color.rgb = RGBColor(30, 58, 138)
 
@@ -406,7 +406,7 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
     footer_p = doc.add_paragraph()
     footer_p.alignment = WD_ALIGN_PARAGRAPH.CENTER
     run_f = footer_p.add_run(
-        f"TalentIQ v{config.APP_VERSION}  &middot;  Documento gerado automaticamente  &middot;  "
+        f"TalentIQ v{config.APP_VERSION}  ·  Documento gerado automaticamente  ·  "
         f"{datetime.now().strftime('%d/%m/%Y')}"
     )
     run_f.font.size = Pt(8)
@@ -422,8 +422,9 @@ def _export_word(df: pd.DataFrame, vagas: list, candidatos: list) -> bytes:
 # PAGE RENDER
 # â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•â•
 
-qa = QAAgent(config.APP_NAME, config.APP_VERSION)
-qa.display_qa_dashboard(qa.run_full_qa_suite())
+if config.DEV_MODE:
+    qa = QAAgent(config.APP_NAME, config.APP_VERSION)
+    qa.display_qa_dashboard(qa.run_full_qa_suite())
 
 _sb_logo = LOGO_SVG.replace("\n", "").replace("  ", " ")
 with st.sidebar:
@@ -439,7 +440,7 @@ with st.sidebar:
     )
 
 page_header("&#128200;", "Scoring Geral",
-            "Vista consolidada de todos os candidatos &middot; Exportação Excel &middot; Relatório Word")
+            "Vista consolidada de todos os candidatos · Exportação Excel · Relatório Word")
 
 dados = _load_data()
 vagas      = dados.get("vagas", [])
@@ -457,7 +458,7 @@ if not candidatos:
 df_all = _build_df(candidatos, vagas)
 df_scored = df_all[df_all["Score Total"].notna()]
 
-# â”€â”€ KPI row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ KPI row â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 scores_all = df_scored["Score Total"].tolist()
 n_altos  = len([s for s in scores_all if s >= 75])
 n_medios = len([s for s in scores_all if 50 <= s < 75])
@@ -467,13 +468,13 @@ col1, col2, col3, col4, col5, col6 = st.columns(6)
 col1.metric("&#128101; Candidatos", len(df_all))
 col2.metric("&#128203; Vagas", len(vagas))
 col3.metric("&#127919; Com Score", len(df_scored))
-col4.metric("ðŸŸ¢ Alto Fit", n_altos)
-col5.metric("ðŸŸ¡ Médio Fit", n_medios)
+col4.metric("🟢 Alto Fit", n_altos)
+col5.metric("🟡 Médio Fit", n_medios)
 col6.metric("&#128202; Score Médio", f"{round(sum(scores_all)/len(scores_all))}%" if scores_all else "—")
 
 st.markdown("<br>", unsafe_allow_html=True)
 
-# â”€â”€ Tabs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Tabs â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 tab1, tab2, tab3, tab4 = st.tabs([
     "&#128202;  Vista Consolidada",
     "&#128200;  Gráficos",
@@ -505,7 +506,7 @@ with tab1:
         )
     with col_f3:
         etapa_filter = st.multiselect(
-            "ðŸ“ Etapa no Pipeline",
+            "📍 Etapa no Pipeline",
             options=df_all["Etapa"].unique().tolist(),
             default=[],
             placeholder="Todas as etapas"
@@ -557,8 +558,8 @@ with tab1:
 
     # Candidate detail expander
     st.markdown("<br>", unsafe_allow_html=True)
-    st.markdown("#### ðŸ”Ž Detalhe do Candidato")
-    nomes_map = {f"{r['Candidato']} &middot; {r['Vaga']} (Score: {r['Score Total']})": i
+    st.markdown("#### 🔎 Detalhe do Candidato")
+    nomes_map = {f"{r['Candidato']} · {r['Vaga']} (Score: {r['Score Total']})": i
                  for i, r in df_view_sorted.iterrows()}
     if nomes_map:
         sel_key = st.selectbox("Seleccionar candidato", list(nomes_map.keys()))
@@ -577,7 +578,7 @@ with tab1:
             if fit.get("explicacao"):
                 st.markdown("**&#128203; Análise:**")
                 for linha in fit["explicacao"]:
-                    st.markdown(f"<div style='padding:3px 0; color:#374151;'>{linha}</div>",
+                    st.markdown(f"<div style='padding:3px 0; color:#374151;'>{esc(linha)}</div>",
                                 unsafe_allow_html=True)
 
             col_e, col_f = st.columns(2)
@@ -674,7 +675,7 @@ with tab2:
 
         with col_g4:
             st.markdown('<div class="section-card">', unsafe_allow_html=True)
-            st.markdown("#### ðŸ•¸ Radar — Dimensões do Score")
+            st.markdown("#### 🕸 Radar — Dimensões do Score")
             top5 = df_scored.nlargest(5, "Score Total")
             categories = ["Competências (50)", "Experiência (30)", "Formação (20)"]
             fig_radar = go.Figure()
@@ -726,7 +727,7 @@ with tab3:
         with st.spinner("A gerar ficheiro Excel..."):
             excel_bytes = _export_excel(df_all, vagas)
         st.download_button(
-            label="â¬‡  Descarregar Excel",
+            label="⬇  Descarregar Excel",
             data=excel_bytes,
             file_name=f"{nome_ficheiro}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -772,7 +773,7 @@ with tab4:
         with st.spinner("A gerar relatório Word..."):
             word_bytes = _export_word(df_all, vagas, candidatos)
         st.download_button(
-            label="â¬‡  Descarregar Relatório (.docx)",
+            label="⬇  Descarregar Relatório (.docx)",
             data=word_bytes,
             file_name=f"{nome_relatorio}.docx",
             mime="application/vnd.openxmlformats-officedocument.wordprocessingml.document",

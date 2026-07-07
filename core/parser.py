@@ -168,8 +168,14 @@ def _parse_tor_deterministic(text: str) -> Dict[str, Any]:
     if not titulo and lines:
         titulo = lines[1] if len(lines) > 1 else lines[0]
 
-    # Organisation name — heuristic: first or second non-empty line
-    organizacao = lines[0] if lines else ""
+    # Organisation name — skip generic document headers, look for org identifiers
+    _doc_headers = {"termos de referência", "terms of reference", "tor", "job description",
+                    "descrição de cargo", "aviso de vaga", "anúncio de vaga"}
+    organizacao = ""
+    for line in lines[:10]:
+        if line.lower().strip() not in _doc_headers and len(line) > 3 and len(line) < 80:
+            organizacao = line
+            break
 
     # Skills
     competencias = [kw for kw in config.SKILLS_KEYWORDS if kw.lower() in text_lower]
@@ -273,22 +279,33 @@ def _parse_deterministic(text: str) -> Dict[str, Any]:
     email_match = re.search(r"[\w\.-]+@[\w\.-]+\.\w+", text)
     email = email_match.group(0) if email_match else None
 
-    # Extract phone via regex (international and local formats)
+    # Extract phone via regex — must start with +, (, or 0, or be 9+ digits
+    # Excludes year ranges like "2018-2024" by requiring non-digit boundary context
     phone_match = re.search(
-        r"(\+?\d[\d\s\-\(\)]{7,15}\d)", text
+        r"(?<!\d)(\+\d[\d\s\-\(\)]{7,15}\d|(?:\(?\d{2,3}\)?[\s\-])[\d\s\-]{6,12}\d)(?!\d)",
+        text
     )
     telefone = phone_match.group(0).strip() if phone_match else None
 
-    # Estimate years of experience via regex (looks for year ranges like 2018-2023)
-    year_matches = re.findall(r"\b(20\d{2}|19\d{2})\b", text)
-    years = [int(y) for y in year_matches]
+    # Estimate years of experience — only consider years 2000-present to avoid
+    # contamination from institution founding dates, historical references, etc.
+    import datetime as _dt
+    _current_year = _dt.datetime.now().year
+    year_matches = re.findall(r"\b(20\d{2})\b", text)
+    years = [int(y) for y in year_matches if 2000 <= int(y) <= _current_year]
     experiencia_anos = 0
     if len(years) >= 2:
-        experiencia_anos = max(years) - min(years)
+        experiencia_anos = _current_year - min(years)
 
-    # Extract name — first non-empty line heuristic
+    # Extract name — skip generic CV headers
+    _header_noise = {"curriculum vitae", "cv", "resume", "candidatura", "perfil",
+                     "dados pessoais", "personal information", "biodata"}
     lines = [l.strip() for l in text.split("\n") if l.strip()]
-    nome = lines[0] if lines else "Desconhecido"
+    nome = "Desconhecido"
+    for line in lines[:8]:
+        if line.lower() not in _header_noise and len(line.split()) >= 2 and len(line) < 60:
+            nome = line
+            break
 
     # Extract languages
     idiomas = [

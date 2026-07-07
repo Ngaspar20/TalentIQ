@@ -2,7 +2,7 @@
 # Change LLM_ENGINE to switch between providers without touching any other file.
 # Options: "grok" | "openai" | "deterministic"
 
-LLM_ENGINE = "deterministic"  # Default: no API key needed
+LLM_ENGINE = "grok"  # Options: "grok" | "openai" | "deterministic"
 
 # API Keys — set via environment variables or replace here for local testing
 # Never commit real keys to version control
@@ -14,6 +14,15 @@ GROK_MODEL = "grok-3"
 
 OPENAI_API_KEY = os.environ.get("OPENAI_API_KEY", "")
 OPENAI_MODEL = "gpt-4o"
+
+# Dev / production flag — set TALENTIQ_DEV=true to show QA dashboard
+DEV_MODE = os.environ.get("TALENTIQ_DEV", "false").lower() == "true"
+
+# Data file path — overridden by launcher.py when running as a packaged .exe
+# so user data lives in %APPDATA%\TalentIQ rather than inside the read-only bundle
+DATA_PATH = os.environ.get("TALENTIQ_DATA_PATH") or os.path.join(
+    os.path.dirname(os.path.abspath(__file__)), "data", "jobs.json"
+)
 
 # App settings
 APP_NAME = "TalentIQ"

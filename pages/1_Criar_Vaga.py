@@ -11,58 +11,82 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from core.parser import extract_text_from_file, parse_tor
 from core.styles import inject_css, page_header, skill_tags, footer, LOGO_SVG
+from core.security import atomic_save, validate_upload
 from qa_agent import QAAgent
 
 st.set_page_config(page_title="Criar Vaga · TalentIQ", page_icon="📋", layout="wide")
 inject_css()
 
 def _load_data():
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(config.DATA_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"vagas": [], "candidatos": []}
 
 def _save_data(dados):
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=2)
+    atomic_save(config.DATA_PATH, dados)
 
 if "dados" not in st.session_state:
     st.session_state["dados"] = _load_data()
 
 if "tor_extraido" not in st.session_state:
     st.session_state["tor_extraido"] = None
+if "form_version" not in st.session_state:
+    st.session_state["form_version"] = 0
+if "editar_vaga_id" not in st.session_state:
+    st.session_state["editar_vaga_id"] = None
+
+def _split_competencias(text: str) -> list:
+    """Split competências on commas that are NOT inside parentheses.
+    Prevents "Python (pandas, numpy, matplotlib)" from being broken into three tokens."""
+    parts, depth, buf = [], 0, []
+    for ch in text:
+        if ch == '(':
+            depth += 1; buf.append(ch)
+        elif ch == ')':
+            depth = max(0, depth - 1); buf.append(ch)
+        elif ch == ',' and depth == 0:
+            p = ''.join(buf).strip()
+            if p:
+                parts.append(p)
+            buf = []
+        else:
+            buf.append(ch)
+    p = ''.join(buf).strip()
+    if p:
+        parts.append(p)
+    return parts
 
 # ── Helper functions for selectbox indices ────────
-def _dept_index(val: str) -> int:
+def _dept_index(val) -> int:
     opts = ["Recursos Humanos", "Tecnologia de Informação", "Finanças",
             "Operações", "Saúde Pública", "Marketing", "Vendas", "Outro"]
-    val_lower = val.lower()
+    val_lower = (val or "").lower()
     for i, o in enumerate(opts):
         if o.lower() in val_lower or val_lower in o.lower():
             return i
     return 7
 
-def _nivel_index(val: str) -> int:
+def _nivel_index(val) -> int:
     opts = ["", "curso técnico", "licenciatura", "mestrado", "doutoramento"]
-    val_lower = val.lower()
+    val_lower = (val or "").lower()
     for i, o in enumerate(opts):
         if o and o in val_lower:
             return i
     return 0
 
-def _contrato_index(val: str) -> int:
+def _contrato_index(val) -> int:
     opts = ["tempo inteiro", "tempo parcial", "consultoria", "estágio"]
-    val_lower = val.lower()
+    val_lower = (val or "").lower()
     for i, o in enumerate(opts):
         if o in val_lower:
             return i
     return 0
 
-qa = QAAgent(config.APP_NAME, config.APP_VERSION)
-qa.display_qa_dashboard(qa.run_full_qa_suite())
+if config.DEV_MODE:
+    qa = QAAgent(config.APP_NAME, config.APP_VERSION)
+    qa.display_qa_dashboard(qa.run_full_qa_suite())
 
 _sb_logo = LOGO_SVG.replace("\n", "").replace("  ", " ")
 with st.sidebar:
@@ -95,10 +119,14 @@ uploaded_tor = st.file_uploader(
     "Arraste o ToR aqui ou clique para seleccionar (PDF ou DOCX)",
     type=["pdf", "docx"],
     help="O TalentIQ lê o documento e extrai título, competências, requisitos e descrição automaticamente.",
-    key="tor_uploader",
+    key=f"tor_uploader_{st.session_state['form_version']}",
 )
 
 if uploaded_tor:
+    _ok, _err = validate_upload(uploaded_tor)
+    if not _ok:
+        st.error(f"❌ {_err}")
+        st.stop()
     with st.spinner("🔍 A analisar o Termo de Referência com IA..."):
         texto_tor = extract_text_from_file(uploaded_tor)
         if not texto_tor.strip():
@@ -130,11 +158,36 @@ st.markdown("""
 </div>
 """, unsafe_allow_html=True)
 
-tor = st.session_state.get("tor_extraido") or {}
+# If editing an existing vaga, use its data as the form default
+_edit_id = st.session_state.get("editar_vaga_id")
+if _edit_id:
+    _all_vagas = (_load_data()).get("vagas", [])
+    _edit_vaga = next((v for v in _all_vagas if v["id"] == _edit_id), None)
+    if _edit_vaga:
+        tor = {
+            "titulo": _edit_vaga.get("titulo", ""),
+            "organizacao": _edit_vaga.get("organizacao", ""),
+            "departamento": _edit_vaga.get("departamento", ""),
+            "local": _edit_vaga.get("local", ""),
+            "modalidade": _edit_vaga.get("modalidade", "Presencial"),
+            "nivel_formacao": _edit_vaga.get("nivel_formacao", ""),
+            "anos_experiencia_min": _edit_vaga.get("anos_experiencia_min", 0),
+            "tipo_contrato": _edit_vaga.get("tipo_contrato", "Tempo Inteiro"),
+            "salario": _edit_vaga.get("salario", ""),
+            "prazo_candidatura": _edit_vaga.get("prazo_candidatura", ""),
+            "competencias_requeridas": _edit_vaga.get("competencias_requeridas", []),
+            "responsabilidades": _edit_vaga.get("responsabilidades", []),
+            "descricao": _edit_vaga.get("descricao", ""),
+        }
+        st.info(f"✏️ A editar vaga: **{_edit_vaga['titulo']}** (ID: `{_edit_id}`)")
+    else:
+        tor = st.session_state.get("tor_extraido") or {}
+else:
+    tor = st.session_state.get("tor_extraido") or {}
 
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 
-with st.form("form_vaga"):
+with st.form(f"form_vaga_{st.session_state['form_version']}"):
     col1, col2 = st.columns(2)
 
     with col1:
@@ -164,8 +217,8 @@ with st.form("form_vaga"):
             "🏢 Modalidade",
             ["Presencial", "Remoto", "Híbrido"],
             index=["presencial", "remoto", "híbrido"].index(
-                tor.get("modalidade", "Presencial").lower()
-            ) if tor.get("modalidade", "").lower() in ["presencial", "remoto", "híbrido"] else 0
+                (tor.get("modalidade") or "Presencial").lower()
+            ) if (tor.get("modalidade") or "").lower() in ["presencial", "remoto", "híbrido"] else 0
         )
 
     with col2:
@@ -241,6 +294,8 @@ st.markdown('</div>', unsafe_allow_html=True)
 
 if limpar:
     st.session_state["tor_extraido"] = None
+    st.session_state["editar_vaga_id"] = None
+    st.session_state["form_version"] += 1
     st.rerun()
 
 if submitted:
@@ -254,7 +309,7 @@ if submitted:
         for e in erros:
             st.error(f"❌ {e}")
     else:
-        competencias_lista = [c.strip().lower() for c in competencias_input.split(",") if c.strip()]
+        competencias_lista = [c.strip().lower() for c in _split_competencias(competencias_input) if c.strip()]
         vaga = {
             "id": str(uuid.uuid4())[:8],
             "titulo": titulo.strip(),
@@ -278,17 +333,23 @@ if submitted:
             "origem": f"ToR · {tor.get('metodo_extracao', '—')}",
         }
 
-        qa.validate_data_integrity(
-            vaga,
-            required_fields=["titulo", "competencias_requeridas"],
-            data_type="dict"
-        )
-
         dados = _load_data()
-        dados["vagas"].append(vaga)
+        if _edit_id:
+            # Update existing vaga
+            vaga["id"] = _edit_id
+            vaga["data_criacao"] = next(
+                (v["data_criacao"] for v in dados["vagas"] if v["id"] == _edit_id),
+                vaga["data_criacao"]
+            )
+            vaga["data_modificacao"] = datetime.now().strftime("%Y-%m-%d %H:%M")
+            dados["vagas"] = [vaga if v["id"] == _edit_id else v for v in dados["vagas"]]
+        else:
+            dados["vagas"].append(vaga)
         _save_data(dados)
         st.session_state["dados"] = dados
         st.session_state["tor_extraido"] = None
+        st.session_state["editar_vaga_id"] = None
+        st.session_state["form_version"] += 1
 
         st.markdown(f"""
         <div style="background:#dcfce7; border:1px solid #86efac; border-radius:12px; padding:16px 20px; margin:16px 0;">
@@ -334,10 +395,17 @@ else:
             if v.get("descricao"):
                 st.markdown(f"**📝 Descrição:** {v['descricao'][:300]}{'...' if len(v.get('descricao',''))>300 else ''}")
 
-            colA, colB = st.columns([4, 1])
+            colA, colB, colC = st.columns([4, 1, 1])
             origem = v.get("origem", "—")
-            colA.caption(f"ID: `{v['id']}` · Criada em: {v['data_criacao']} · Origem: {origem}")
+            mod = f" · Editada: {v['data_modificacao']}" if v.get("data_modificacao") else ""
+            colA.caption(f"ID: `{v['id']}` · Criada em: {v['data_criacao']}{mod} · Origem: {origem}")
             with colB:
+                if st.button("✏️ Editar", key=f"edit_{v['id']}"):
+                    st.session_state["editar_vaga_id"] = v["id"]
+                    st.session_state["tor_extraido"] = None
+                    st.session_state["form_version"] += 1
+                    st.rerun()
+            with colC:
                 if st.button("🗑️ Remover", key=f"del_{v['id']}"):
                     dados["vagas"] = [x for x in dados["vagas"] if x["id"] != v["id"]]
                     _save_data(dados)

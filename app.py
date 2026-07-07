@@ -22,9 +22,8 @@ inject_dark_css()
 
 # ── Session state ─────────────────────────────────
 def _load_data() -> dict:
-    path = os.path.join(os.path.dirname(__file__), "data", "jobs.json")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(config.DATA_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"vagas": [], "candidatos": []}
@@ -32,13 +31,14 @@ def _load_data() -> dict:
 if "dados" not in st.session_state:
     st.session_state["dados"] = _load_data()
 
-# ── QA ────────────────────────────────────────────
-qa = QAAgent(config.APP_NAME, config.APP_VERSION)
-qa_report = qa.run_full_qa_suite(
-    data=st.session_state["dados"],
-    code_snippet=open(__file__).read(),
-)
-qa.display_qa_dashboard(qa_report)
+# ── QA (dev only) ─────────────────────────────────
+if config.DEV_MODE:
+    qa = QAAgent(config.APP_NAME, config.APP_VERSION)
+    qa_report = qa.run_full_qa_suite(
+        data=st.session_state["dados"],
+        code_snippet=open(__file__).read(),
+    )
+    qa.display_qa_dashboard(qa_report)
 
 # ── Sidebar ───────────────────────────────────────
 _logo_sb = LOGO_SVG_DARK.replace("\n", "").replace("  ", " ")
@@ -56,7 +56,7 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
     st.markdown("---")
-    dados = _load_data()
+    dados = st.session_state["dados"]
     n_vagas      = len(dados.get("vagas", []))
     n_candidatos = len(dados.get("candidatos", []))
     st.metric("📋 Vagas", n_vagas)
@@ -87,7 +87,7 @@ st.markdown(
 )
 
 # ── Stats row ─────────────────────────────────────
-dados      = _load_data()
+dados      = st.session_state["dados"]
 vagas      = dados.get("vagas", [])
 candidatos = dados.get("candidatos", [])
 scores     = [c["score_fit"] for c in candidatos if c.get("score_fit") is not None]

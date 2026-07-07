@@ -11,6 +11,7 @@ import pandas as pd
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import config
 from core.styles import inject_css, page_header, score_badge, footer, LOGO_SVG
+from core.security import esc, atomic_save
 from qa_agent import QAAgent
 
 st.set_page_config(page_title="Pipeline &middot; TalentIQ", page_icon="&#128202;", layout="wide")
@@ -44,29 +45,23 @@ ETAPA_COLORS = {
 }
 
 def _load_data():
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
     try:
-        with open(path, "r", encoding="utf-8") as f:
+        with open(config.DATA_PATH, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception:
         return {"vagas": [], "candidatos": []}
 
 def _save_data(dados):
-    path = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data", "jobs.json")
-    with open(path, "w", encoding="utf-8") as f:
-        json.dump(dados, f, ensure_ascii=False, indent=2)
-
-qa = QAAgent(config.APP_NAME, config.APP_VERSION)
+    atomic_save(config.DATA_PATH, dados)
 
 dados = _load_data()
 vagas = dados.get("vagas", [])
 candidatos = dados.get("candidatos", [])
 
-if candidatos:
-    df_qa = pd.DataFrame(candidatos)
+if config.DEV_MODE:
+    qa = QAAgent(config.APP_NAME, config.APP_VERSION)
+    df_qa = pd.DataFrame(candidatos) if candidatos else None
     qa.display_qa_dashboard(qa.run_full_qa_suite(data=df_qa))
-else:
-    qa.display_qa_dashboard(qa.run_full_qa_suite())
 
 _sb_logo = LOGO_SVG.replace("\n", "").replace("  ", " ")
 with st.sidebar:
@@ -88,10 +83,15 @@ if not vagas:
     st.warning("Nenhuma vaga criada. Vá a **&#128203; Criar Vaga** primeiro.")
     st.stop()
 
-# â”€â”€ Filter â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Filter â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
-vaga_opcoes = {"&#128203; Todas as Vagas": None}
-vaga_opcoes.update({f"{v['titulo']} ({v['id']})": v["id"] for v in vagas})
+vaga_opcoes = {"📋 Todas as Vagas": None}
+for v in vagas:
+    label = v["titulo"]
+    # Deduplicate labels when multiple vagas share the same title
+    if label in vaga_opcoes:
+        label = f"{v['titulo']} ({v['id'][:6]})"
+    vaga_opcoes[label] = v["id"]
 filtro_key = st.selectbox("&#128269; Filtrar por Vaga", list(vaga_opcoes.keys()))
 filtro_vaga_id = vaga_opcoes[filtro_key]
 st.markdown('</div>', unsafe_allow_html=True)
@@ -110,7 +110,7 @@ if not candidatos_filtrados:
     """, unsafe_allow_html=True)
     st.stop()
 
-# â”€â”€ KPI row â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ KPI row â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown("<br>", unsafe_allow_html=True)
 scores = [c["score_fit"] for c in candidatos_filtrados if c.get("score_fit") is not None]
 em_processo = len([c for c in candidatos_filtrados if c["etapa"] not in ["Contratado", "Rejeitado"]])
@@ -119,18 +119,18 @@ rejeitados = len([c for c in candidatos_filtrados if c["etapa"] == "Rejeitado"])
 
 col1, col2, col3, col4, col5 = st.columns(5)
 col1.metric("&#128101; Total", len(candidatos_filtrados))
-col2.metric("âš™ Em Processo", em_processo)
+col2.metric("⚙ Em Processo", em_processo)
 col3.metric("&#9989; Contratados", contratados)
 col4.metric("&#10060; Rejeitados", rejeitados)
 col5.metric("&#127919; Score Médio", f"{round(sum(scores)/len(scores))}%" if scores else "—")
 
-# â”€â”€ Charts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Charts â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown("<br>", unsafe_allow_html=True)
 col_chart1, col_chart2 = st.columns([3, 2])
 
 with col_chart1:
     st.markdown('<div class="section-card">', unsafe_allow_html=True)
-    st.markdown("#### ðŸ“‰ Funil de Recrutamento")
+    st.markdown("#### 📉 Funil de Recrutamento")
     contagem_etapas = {e: 0 for e in ETAPAS}
     for c in candidatos_filtrados:
         etapa = c.get("etapa", "Candidatura Recebida")
@@ -164,7 +164,7 @@ with col_chart2:
         medios = len([s for s in scores if 50 <= s < 75])
         baixos = len([s for s in scores if s < 50])
         fig_pie = go.Figure(data=[go.Pie(
-            labels=["Alto (â‰¥75)", "Médio (50-74)", "Baixo (<50)"],
+            labels=["Alto (>=75)", "Médio (50-74)", "Baixo (<50)"],
             values=[altos, medios, baixos],
             hole=0.55,
             marker_colors=["#10b981", "#f59e0b", "#ef4444"],
@@ -184,9 +184,9 @@ with col_chart2:
         """, unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# â”€â”€ Kanban board â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Kanban board â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown("<br>", unsafe_allow_html=True)
-st.markdown("### ðŸ—‚ Candidatos por Etapa")
+st.markdown("### 🗂 Candidatos por Etapa")
 
 etapas_ativas = [e for e in ETAPAS if e not in ["Contratado", "Rejeitado"]]
 cols = st.columns(len(etapas_ativas))
@@ -210,25 +210,25 @@ for col, etapa in zip(cols, etapas_ativas):
                 if score is not None else "<span style='color:#94a3b8;'>&#9898; Sem score</span>"
             st.markdown(f"""
             <div class="kanban-card" style="border-left-color:{cor};">
-                <div class="kanban-card-name">{c['nome']}</div>
-                <div class="kanban-card-sub">{c['vaga_titulo']}</div>
+                <div class="kanban-card-name">{esc(c['nome'])}</div>
+                <div class="kanban-card-sub">{esc(c['vaga_titulo'])}</div>
                 <div style="margin-top:6px; font-size:0.82rem;">{score_html}</div>
             </div>
             """, unsafe_allow_html=True)
 
-# â”€â”€ Move candidate â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Move candidate â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown('<div class="section-card">', unsafe_allow_html=True)
 st.markdown("### &#128260; Mover Candidato de Etapa")
 
-nomes = {f"{c['nome']} &middot; {c['vaga_titulo']} ({c['id']})": c["id"] for c in candidatos_filtrados}
+nomes = {f"{c['nome']} · {c['vaga_titulo']}": c["id"] for c in candidatos_filtrados}
 if nomes:
     col1, col2, col3 = st.columns([3, 2, 1])
     with col1:
         candidato_key = st.selectbox("&#128100; Selecionar Candidato", list(nomes.keys()))
         candidato_id = nomes[candidato_key]
     with col2:
-        nova_etapa = st.selectbox("ðŸ“ Nova Etapa", ETAPAS)
+        nova_etapa = st.selectbox("📍 Nova Etapa", ETAPAS)
     with col3:
         st.markdown("<br>", unsafe_allow_html=True)
         if st.button("&#9989;  Actualizar", type="primary", use_container_width=True):
@@ -241,7 +241,7 @@ if nomes:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# â”€â”€ Full table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+# â"€â"€ Full table â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### &#128203; Tabela Completa")
 
@@ -260,7 +260,7 @@ st.dataframe(
     hide_index=True,
     column_config={
         "Score Fit": st.column_config.TextColumn("&#127919; Score Fit"),
-        "Etapa": st.column_config.TextColumn("ðŸ“ Etapa"),
+        "Etapa": st.column_config.TextColumn("📍 Etapa"),
         "Nome": st.column_config.TextColumn("&#128100; Nome"),
     }
 )
