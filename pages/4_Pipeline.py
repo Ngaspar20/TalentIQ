@@ -81,6 +81,36 @@ page_header("&#128202;", "Pipeline de Candidatos",
 
 if not vagas:
     st.warning("Nenhuma vaga criada. Vá a **&#128203; Criar Vaga** primeiro.")
+    # Still allow deleting orphaned candidates
+    if candidatos:
+        st.markdown("<br>", unsafe_allow_html=True)
+        st.markdown('<div class="section-card">', unsafe_allow_html=True)
+        st.markdown("### &#128465; Eliminar Candidato")
+        nomes_del = {f"{c['nome']} · {c.get('vaga_titulo', '—')}": c["id"] for c in candidatos}
+        col_d1, col_d2 = st.columns([4, 1])
+        with col_d1:
+            del_key = st.selectbox("&#128100; Candidato a eliminar", list(nomes_del.keys()),
+                                   key="sel_eliminar_early")
+            del_id = nomes_del[del_key]
+        with col_d2:
+            st.markdown("<br>", unsafe_allow_html=True)
+            if st.button("&#128465; Eliminar", type="secondary", use_container_width=True,
+                         key="btn_eliminar_early"):
+                st.session_state["confirmar_del_early"] = del_id
+        if st.session_state.get("confirmar_del_early") == del_id:
+            st.warning(f"Tem a certeza? Esta acção é irreversível.")
+            c1, c2 = st.columns(2)
+            if c1.button("&#10060; Cancelar", use_container_width=True, key="btn_cancel_early"):
+                del st.session_state["confirmar_del_early"]
+                st.rerun()
+            if c2.button("&#9989; Confirmar", type="primary", use_container_width=True,
+                         key="btn_confirm_early"):
+                dados["candidatos"] = [c for c in dados["candidatos"] if c["id"] != del_id]
+                _save_data(dados)
+                del st.session_state["confirmar_del_early"]
+                st.success("Candidato eliminado.")
+                st.rerun()
+        st.markdown('</div>', unsafe_allow_html=True)
     st.stop()
 
 # â"€â"€ Filter â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
@@ -241,7 +271,43 @@ if nomes:
 
 st.markdown('</div>', unsafe_allow_html=True)
 
-# â"€â"€ Full table â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
+# ── Eliminar candidato ───────────────────────────────────────────
+st.markdown("<br>", unsafe_allow_html=True)
+st.markdown('<div class="section-card">', unsafe_allow_html=True)
+st.markdown("### &#128465; Eliminar Candidato")
+
+nomes_del = {f"{c['nome']} · {c['vaga_titulo']}": c["id"] for c in candidatos_filtrados}
+if nomes_del:
+    col_d1, col_d2 = st.columns([4, 1])
+    with col_d1:
+        del_key = st.selectbox("&#128100; Candidato a eliminar", list(nomes_del.keys()),
+                               key="sel_eliminar")
+        del_id = nomes_del[del_key]
+    with col_d2:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("&#128465; Eliminar", type="secondary", use_container_width=True,
+                     key="btn_eliminar"):
+            st.session_state["confirmar_del"] = del_id
+
+    if st.session_state.get("confirmar_del") == del_id:
+        st.warning(f"Tem a certeza que quer eliminar **{del_key}**? Esta acção é irreversível.")
+        c1, c2 = st.columns(2)
+        if c1.button("&#10060; Cancelar", use_container_width=True, key="btn_cancel_del"):
+            del st.session_state["confirmar_del"]
+            st.rerun()
+        if c2.button("&#9989; Confirmar eliminação", type="primary",
+                     use_container_width=True, key="btn_confirm_del"):
+            dados["candidatos"] = [c for c in dados["candidatos"] if c["id"] != del_id]
+            _save_data(dados)
+            del st.session_state["confirmar_del"]
+            st.success("Candidato eliminado.")
+            st.rerun()
+else:
+    st.info("Nenhum candidato para eliminar neste filtro.")
+
+st.markdown('</div>', unsafe_allow_html=True)
+
+# ── Full table ───────────────────────────────────────────────────
 st.markdown("<br>", unsafe_allow_html=True)
 st.markdown("### &#128203; Tabela Completa")
 

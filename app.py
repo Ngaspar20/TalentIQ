@@ -28,8 +28,7 @@ def _load_data() -> dict:
     except Exception:
         return {"vagas": [], "candidatos": []}
 
-if "dados" not in st.session_state:
-    st.session_state["dados"] = _load_data()
+st.session_state["dados"] = _load_data()
 
 # ── QA (dev only) ─────────────────────────────────
 if config.DEV_MODE:
