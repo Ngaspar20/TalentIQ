@@ -79,7 +79,7 @@ Analise este CV e extraia as seguintes informações em JSON:
   "email": "email ou null",
   "telefone": "telefone ou null",
   "competencias": ["lista de competências e habilidades"],
-  "experiencia_anos": número total estimado de anos de experiência,
+  "experiencia_anos": número inteiro de anos de experiência profissional mencionados EXPLICITAMENTE no CV (ex: "8 anos de experiência" → 8). NÃO calcule nem estime — se o CV não indicar um número explícito, some os períodos listados nos cargos. Retorne sempre um inteiro.
   "cargos_anteriores": ["lista de cargos ocupados"],
   "formacao": ["lista de formações académicas"],
   "idiomas": ["lista de idiomas"],

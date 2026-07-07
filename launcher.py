@@ -66,8 +66,8 @@ def _setup_user_data() -> str:
 
 def _app_dir() -> str:
     if getattr(sys, "frozen", False):
-        # Running inside a PyInstaller bundle
-        return os.path.dirname(sys.executable)
+        # PyInstaller 6.x puts bundled files in _internal/ — sys._MEIPASS points there
+        return sys._MEIPASS  # type: ignore[attr-defined]
     return os.path.dirname(os.path.abspath(__file__))
 
 
@@ -114,9 +114,9 @@ def _run_worker(port: int) -> None:
     from streamlit.web import bootstrap  # type: ignore
     bootstrap.run(
         app_path,
-        command_line="",
-        args=[],
-        flag_options={
+        False,  # is_hello (was 'command_line' in older Streamlit versions)
+        [],
+        {
             "server.port": port,
             "server.headless": True,
             "server.enableCORS": False,

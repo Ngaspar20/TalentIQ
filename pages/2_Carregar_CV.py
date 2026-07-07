@@ -169,6 +169,12 @@ if uploaded_file:
         with col1:
             nome_edit = st.text_input("&#128100; Nome do Candidato", value=perfil.get("nome", ""))
             email_edit = st.text_input("&#128231; Email", value=perfil.get("email") or "")
+            anos_edit = st.number_input(
+                "&#9203; Anos de Experiência (corrija se necessário)",
+                min_value=0, max_value=50,
+                value=int(perfil.get("experiencia_anos") or 0),
+                step=1,
+            )
         with col2:
             etapa = st.selectbox("📍 Etapa no Pipeline", [
                 "Candidatura Recebida", "Em Triagem", "Entrevista",
@@ -183,6 +189,7 @@ if uploaded_file:
     if guardar:
         nome_final = nome_edit.strip() or perfil.get("nome", "Desconhecido")
         email_final = email_edit.strip()
+        perfil["experiencia_anos"] = int(anos_edit)
         dados = _load_data()
 
         # Duplicate detection: same email OR same name for same vaga

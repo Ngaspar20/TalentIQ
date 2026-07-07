@@ -300,9 +300,9 @@ if limpar:
 
 if submitted:
     erros = []
-    if not titulo.strip():
+    if not (titulo or "").strip():
         erros.append("O título da vaga é obrigatório.")
-    if not competencias_input.strip():
+    if not (competencias_input or "").strip():
         erros.append("Adicione pelo menos uma competência requerida.")
 
     if erros:
@@ -407,7 +407,9 @@ else:
                     st.rerun()
             with colC:
                 if st.button("🗑️ Remover", key=f"del_{v['id']}"):
-                    dados["vagas"] = [x for x in dados["vagas"] if x["id"] != v["id"]]
+                    vaga_id = v["id"]
+                    dados["vagas"] = [x for x in dados["vagas"] if x["id"] != vaga_id]
+                    dados["candidatos"] = [c for c in dados.get("candidatos", []) if c.get("vaga_id") != vaga_id]
                     _save_data(dados)
                     st.session_state["dados"] = dados
                     st.rerun()
